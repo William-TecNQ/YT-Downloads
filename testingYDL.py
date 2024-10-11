@@ -29,42 +29,91 @@ def format_selector(ctx):
         # Must be + separated list of protocols
         'protocol': f'{best_video["protocol"]}+{best_audio["protocol"]}'
     }
+    
+def check_title(url, options):
+    # Change arguments to make it less verbose aka quiet
+    try: 
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info_dict = ydl.extract_info(url, download=False)
+            video_title = info_dict.get('title', None)
+            video_id = info_dict.get('id', None)
+            return video_title
+    except yt_dlp.utils.DownloadError:
+        print('\nDownload Error occured: Check Proxy credentials')
 
 
 print('\n-- Proxy Authentication --')
 username = input('Username: ')
 password = getpass()
 
-print('URLS - enter the YouTube link one at a time, enter nothing to finish')
+# YoutubeDL arguments for proxy auth, ffmpeg binary & forcing good codecs
+download_options = {
+    'proxy': f'http://{username}:{password}@gateway.atcnq.local:3128',
+    'ffmpeg_location': '/Users/williambowman/ffmpeg',
+    'format': format_selector
+}
+check_options = {'proxy': f'http://{username}:{password}@gateway.atcnq.local:3128'}
 
-urls = []
-url = input('>> ')
+url = input('\nURLS - Enter each YouTube URL one at a time, enter nothing to finish\n>> ')
+videos = []
+titles = []
+# Fetch YT titles !
+
+
 while url != '':
+    # Required so the string slicing doesn't break the link
     if 'https' not in url:
         url.replace('http', 'https')
-
     if 'youtu.be' in url:
-        # Check link
-        urls.append(url)
+        videos.append(url)
     elif 'youtube.com' in url:
-        # Check link
         if len(url) > 43:
             url = url[0:43]
-        urls.append(url)
+        titles.append(check_title(url, check_options))
+        videos.append(url)
+
     else:
         print('Invalid link')
     url = input('>> ')
 
-ydl_opts = {
-    'proxy': f'http://{username}:{password}@gateway.atcnq.local:3128',
-    # 'simulate': True,
-    'ffmpeg_location': '/Users/williambowman/ffmpeg',
-    # 'listformats': True,
-    'format': format_selector
-}
+def display_videos(titles):
+    print('These are the videos in your list:')
+# List titles to user
+    for i, title in enumerate(titles):
+        print(f'{i+1}. {title}')
+
+
+def edit_videos(check_options, titles):
+    display_videos(titles)
+    # Provide option to change or clear entire list
+    is_editing = input('\nWould you like to edit the list? (Y/N)\n>> ').lower()
+    while is_editing not in ['y', 'n']:
+        print('Invalid input')
+        is_editing = input('\nould you like to edit the list? (Y/N)\n>> ').lower()
+    if is_editing == 'y':
+    # Change singular list elements by having index's in the provided list
+        video_number = int(input('\nPlease enter the video number you wish to change\n>> '))
+        while video_number > len(titles) + 1:
+            print('Invalid video number')
+            video_number = int(input('\nPlease enter the video number you wish to change\n>> '))
+        new_url = input('\nPlease enter the new YouTube URL\n>> ')
+        titles[video_number - 1] = check_title(new_url, check_options)
+    else:
+        print('This ended')
+        return
+
+edit_videos(check_options, titles)
+    
+
+
+
+
+
 
 try: 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download(urls)
+    print('----- DOWNLOAD STARTED -----')
+    with yt_dlp.YoutubeDL(download_options) as ydl:
+        ydl.download(videos)
 except yt_dlp.utils.DownloadError:
     print('\nDownload Error occured: Check Proxy credentials')
+
