@@ -1,9 +1,64 @@
-import yt_dlp
+import requests
+from os import path
 from getpass import getpass
-
+from yt_dlp import YoutubeDL
+from yt_dlp.utils import DownloadError 
 # https://www.youtube.com/watch?v=D5kGXI8vUKg
 # https://www.youtube.com/watch?v=udNXMAflbU8
 # https://www.youtube.com/watch?v=ApYbwdFWytE
+
+# Make sure your ffmpeg binary is in your home directory 
+# Otherwise, change the filepath for the argument 'ffmpeg_location'
+
+HOME_DIR = path.expanduser('~')
+# make proxy verification by using req status codes
+def main():
+    print('\n-- Proxy Authentication --')
+    username = input('Username: ')
+    password = getpass()
+    while check_proxy(username, password) == False:
+        print('Invalid proxy credentials\n')
+        username = input('Username: ')
+        password = getpass()
+    
+    # YoutubeDL arguments for proxy auth, ffmpeg binary & forcing good codecs
+
+    url = input('\nURLS - Enter each YouTube URL one at a time, enter nothing to finish\n>> ')
+    videos = []
+    titles = []
+    check_options = {'proxy': f'http://{username}:{password}@gateway.atcnq.local:3128'}
+
+    while url != '':
+        # Required so the string slicing doesn't break the link
+        if 'https' not in url:
+            url.replace('http', 'https')
+        if 'youtu.be' in url:
+            videos.append(url)
+        elif 'youtube.com' in url:
+            if len(url) > 43:
+                url = url[0:43]
+            titles.append(check_title(url, check_options))
+            videos.append(url)
+        else:
+            print('Invalid link')
+        url = input('>> ')
+    edit_videos(check_options, titles)
+
+
+    final_directory = get_directory()
+    download_options = {
+        'proxy': f'http://{username}:{password}@gateway.atcnq.local:3128',
+        'ffmpeg_location': f'./ffmpeg',
+        'format': format_selector,
+        'paths': {'home': f'{final_directory}', 'temp': HOME_DIR}
+    }
+    try: 
+        print('----- DOWNLOAD STARTED -----')
+        with YoutubeDL(download_options) as ydl:
+            ydl.download(videos)
+    except DownloadError:
+        print('\nDownload Error occured: Check Proxy credentials')
+
 def format_selector(ctx):
     """ Select the best video and the best audio that won't result in an mkv.
     NOTE: This is just an example and does not handle all cases """
@@ -33,48 +88,12 @@ def format_selector(ctx):
 def check_title(url, options):
     # Change arguments to make it less verbose aka quiet
     try: 
-        with yt_dlp.YoutubeDL(options) as ydl:
+        with YoutubeDL(options) as ydl:
             info_dict = ydl.extract_info(url, download=False)
             video_title = info_dict.get('title', None)
-            video_id = info_dict.get('id', None)
             return video_title
-    except yt_dlp.utils.DownloadError:
+    except DownloadError:
         print('\nDownload Error occured: Check Proxy credentials')
-
-
-print('\n-- Proxy Authentication --')
-username = input('Username: ')
-password = getpass()
-
-# YoutubeDL arguments for proxy auth, ffmpeg binary & forcing good codecs
-download_options = {
-    'proxy': f'http://{username}:{password}@gateway.atcnq.local:3128',
-    'ffmpeg_location': '/Users/williambowman/ffmpeg',
-    'format': format_selector
-}
-check_options = {'proxy': f'http://{username}:{password}@gateway.atcnq.local:3128'}
-
-url = input('\nURLS - Enter each YouTube URL one at a time, enter nothing to finish\n>> ')
-videos = []
-titles = []
-# Fetch YT titles !
-
-
-while url != '':
-    # Required so the string slicing doesn't break the link
-    if 'https' not in url:
-        url.replace('http', 'https')
-    if 'youtu.be' in url:
-        videos.append(url)
-    elif 'youtube.com' in url:
-        if len(url) > 43:
-            url = url[0:43]
-        titles.append(check_title(url, check_options))
-        videos.append(url)
-
-    else:
-        print('Invalid link')
-    url = input('>> ')
 
 def display_videos(titles):
     print('These are the videos in your list:')
@@ -82,38 +101,44 @@ def display_videos(titles):
     for i, title in enumerate(titles):
         print(f'{i+1}. {title}')
 
-
 def edit_videos(check_options, titles):
     display_videos(titles)
     # Provide option to change or clear entire list
     is_editing = input('\nWould you like to edit the list? (Y/N)\n>> ').lower()
-    while is_editing not in ['y', 'n']:
-        print('Invalid input')
-        is_editing = input('\nould you like to edit the list? (Y/N)\n>> ').lower()
-    if is_editing == 'y':
-    # Change singular list elements by having index's in the provided list
+    while is_editing != 'n':
+        while is_editing not in ['y', 'n']:
+            print('Invalid input')
+            is_editing = input('\nWould you like to edit the list? (Y/N)\n>> ').lower()
+            
+        # Change singular list elements by having index's in the provided list
         video_number = int(input('\nPlease enter the video number you wish to change\n>> '))
         while video_number > len(titles) + 1:
             print('Invalid video number')
             video_number = int(input('\nPlease enter the video number you wish to change\n>> '))
         new_url = input('\nPlease enter the new YouTube URL\n>> ')
         titles[video_number - 1] = check_title(new_url, check_options)
-    else:
-        print('This ended')
-        return
 
-edit_videos(check_options, titles)
+        display_videos(titles)
+        is_editing = input('\nWould you like to edit the list? (Y/N)\n>> ').lower()
+
+
+def check_proxy(username, password):
+    proxies = {'https': f'http://{username}:{password}@gateway.atcnq.local:3128'}
+    try:
+        r = requests.get('https://youtube.com', proxies=proxies)
+        if r.status_code == 200:
+            return True
+        return False
+    except requests.exceptions.ProxyError :
+        return False
     
+def get_directory():
+    dir = input('Enter your desired download location - Desktop by default\n>> ')
+    if dir == '':
+        return f'{HOME_DIR}/Desktop'
+    while path.isdir(dir) == False:
+        print('Invalid directory')
+        dir = input('Enter your desired download location - Desktop by default\n>> ')
+    return dir
 
-
-
-
-
-
-try: 
-    print('----- DOWNLOAD STARTED -----')
-    with yt_dlp.YoutubeDL(download_options) as ydl:
-        ydl.download(videos)
-except yt_dlp.utils.DownloadError:
-    print('\nDownload Error occured: Check Proxy credentials')
-
+main()
