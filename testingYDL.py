@@ -1,15 +1,15 @@
 import requests
 from os import path
 from getpass import getpass
-from yt_dlp import YoutubeDL
-from yt_dlp.utils import DownloadError 
+import yt_dlp
+from yt_dlp.networking import exceptions
 # https://www.youtube.com/watch?v=D5kGXI8vUKg
 # https://www.youtube.com/watch?v=udNXMAflbU8
 # https://www.youtube.com/watch?v=ApYbwdFWytE
 
 # Make sure your ffmpeg binary is in your home directory 
 # Otherwise, change the filepath for the argument 'ffmpeg_location'
-
+PROXY = 'gateway.atcnq.local:3128'
 HOME_DIR = path.expanduser('~')
 # make proxy verification by using req status codes
 def main():
@@ -21,44 +21,47 @@ def main():
         username = input('Username: ')
         password = getpass()
     
-    # YoutubeDL arguments for proxy auth, ffmpeg binary & forcing good codecs
+    # yt_dlp.YoutubeDL arguments for proxy auth, ffmpeg binary & forcing good codecs
 
     url = input('\nURLS - Enter each YouTube URL one at a time, enter nothing to finish\n>> ')
-    videos = []
     titles = []
-    check_options = {'proxy': f'http://{username}:{password}@gateway.atcnq.local:3128'}
+    videos = []
+    check_options = {
+        'proxy': f'http://{username}:{password}@{PROXY}',
+        'ffmpeg_location': f'./ffmpeg',
+        'quiet': True
+    }
 
     while url != '':
-        # Required so the string slicing doesn't break the link
-        if 'https' not in url:
-            url.replace('http', 'https')
-        if 'youtu.be' in url:
-            videos.append(url)
-        elif 'youtube.com' in url:
-            if len(url) > 43:
-                url = url[0:43]
-            titles.append(check_title(url, check_options))
-            videos.append(url)
+        if url[:43] in videos:
+            print('Video already added')
+        elif 'youtube.com' in url or 'youtu.be' in url:
+            try:
+                titles.append(get_title(url, check_options))
+                videos.append(url)
+            except yt_dlp.utils.DownloadError:
+                print('Verification error: Check video URL')
+            except exceptions.NoSupportingHandlers:
+                print('Verification error: Check video URL')
         else:
-            print('Invalid link')
+            print('Invalid URL')
         url = input('>> ')
-    edit_videos(check_options, titles)
-
+    edit_videos(check_options, titles, videos)
 
     final_directory = get_directory()
     download_options = {
-        'proxy': f'http://{username}:{password}@gateway.atcnq.local:3128',
+        'proxy': f'http://{username}:{password}@{PROXY}',
         'ffmpeg_location': f'./ffmpeg',
         'format': format_selector,
         'paths': {'home': f'{final_directory}', 'temp': HOME_DIR}
     }
     try: 
         print('----- DOWNLOAD STARTED -----')
-        with YoutubeDL(download_options) as ydl:
+        with yt_dlp.YoutubeDL(download_options) as ydl:
             ydl.download(videos)
-    except DownloadError:
+    except yt_dlp.utils.DownloadError:
         print('\nDownload Error occured: Check Proxy credentials')
-
+        
 def format_selector(ctx):
     """ Select the best video and the best audio that won't result in an mkv.
     NOTE: This is just an example and does not handle all cases """
@@ -72,7 +75,7 @@ def format_selector(ctx):
 
     # find compatible audio extension
     audio_ext = {'mp4': 'm4a'}[best_video['ext']]
-    # vcodec='none' means there is no video
+    # vcodec='none' means there is no videoa
     best_audio = next(f for f in formats if (
         f['acodec'] != 'none' and f['vcodec'] == 'none' and f['ext'] == audio_ext))
 
@@ -84,24 +87,24 @@ def format_selector(ctx):
         # Must be + separated list of protocols
         'protocol': f'{best_video["protocol"]}+{best_audio["protocol"]}'
     }
-    
-def check_title(url, options):
+
+def get_title(url, options):
     # Change arguments to make it less verbose aka quiet
     try: 
-        with YoutubeDL(options) as ydl:
+        with yt_dlp.YoutubeDL(options) as ydl:
             info_dict = ydl.extract_info(url, download=False)
             video_title = info_dict.get('title', None)
             return video_title
-    except DownloadError:
-        print('\nDownload Error occured: Check Proxy credentials')
-
+    except yt_dlp.utils.DownloadError:
+        raise yt_dlp.utils.DownloadError('Check video URL')
+    
 def display_videos(titles):
-    print('These are the videos in your list:')
-# List titles to user
+    print('\nThese are the videos in your list:')
+    # List titles to user
     for i, title in enumerate(titles):
         print(f'{i+1}. {title}')
 
-def edit_videos(check_options, titles):
+def edit_videos(check_options, titles, videos):
     display_videos(titles)
     # Provide option to change or clear entire list
     is_editing = input('\nWould you like to edit the list? (Y/N)\n>> ').lower()
@@ -111,19 +114,40 @@ def edit_videos(check_options, titles):
             is_editing = input('\nWould you like to edit the list? (Y/N)\n>> ').lower()
             
         # Change singular list elements by having index's in the provided list
-        video_number = int(input('\nPlease enter the video number you wish to change\n>> '))
-        while video_number > len(titles) + 1:
+        video_number = get_number('\nPlease enter the video number you wish to change\n>> ')
+        while video_number > len(titles):
             print('Invalid video number')
-            video_number = int(input('\nPlease enter the video number you wish to change\n>> '))
-        new_url = input('\nPlease enter the new YouTube URL\n>> ')
-        titles[video_number - 1] = check_title(new_url, check_options)
+            video_number = get_number('\nPlease enter the video number you wish to change\n>> ')
+
+        verified = False
+        while not verified:
+            new_url = input('\nPlease enter the new YouTube URL\n>> ')
+            if 'youtube.com' in new_url or 'youtu.be' in new_url:
+                try:
+                    titles[video_number - 1] = get_title(new_url, check_options)
+                    videos[video_number - 1] = new_url
+                    verified = True
+                except yt_dlp.utils.DownloadError:
+                    print('Verification error: Check video URL')
+            else:
+                print('Invalid link')
+
 
         display_videos(titles)
         is_editing = input('\nWould you like to edit the list? (Y/N)\n>> ').lower()
 
+def get_number(prompt):
+    value = input(prompt)
+    while type(value) == str:
+        try:
+            value = int(value)
+        except ValueError:
+            print('Invalid input')
+            value = input(prompt)
+    return value
 
 def check_proxy(username, password):
-    proxies = {'https': f'http://{username}:{password}@gateway.atcnq.local:3128'}
+    proxies = {'https': f'http://{username}:{password}@{PROXY}'}
     try:
         r = requests.get('https://youtube.com', proxies=proxies)
         if r.status_code == 200:
@@ -133,12 +157,12 @@ def check_proxy(username, password):
         return False
     
 def get_directory():
-    dir = input('Enter your desired download location - Desktop by default\n>> ')
-    if dir == '':
-        return f'{HOME_DIR}/Desktop'
+    dir = input('\nEnter your desired download location - Desktop by default\n>> ')
     while path.isdir(dir) == False:
+        if dir == '':
+            return f'{HOME_DIR}/Desktop'
         print('Invalid directory')
-        dir = input('Enter your desired download location - Desktop by default\n>> ')
+        dir = input('\nEnter your desired download location - Desktop by default\n>> ')
     return dir
 
 main()
