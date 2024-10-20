@@ -7,7 +7,8 @@ from yt_dlp.networking import exceptions
 # https://www.youtube.com/watch?v=udNXMAflbU8
 # https://www.youtube.com/watch?v=ApYbwdFWytE
 
-# Make sure your ffmpeg binary is in your home directory 
+# Ensure both ffmpeg & yt_dlp is added to PATH
+# Alternatively, add them to the same directory as this script
 # Otherwise, change the filepath for the argument 'ffmpeg_location'
 PROXY = 'gateway.atcnq.local:3128'
 HOME_DIR = path.expanduser('~')
@@ -21,15 +22,15 @@ def main():
         username = input('Username: ')
         password = getpass()
     
-    # yt_dlp.YoutubeDL arguments for proxy auth, ffmpeg binary & forcing good codecs
 
     url = input('\nURLS - Enter each YouTube URL one at a time, enter nothing to finish\n>> ')
     titles = []
     videos = []
     check_options = {
         'proxy': f'http://{username}:{password}@{PROXY}',
-        'ffmpeg_location': f'./ffmpeg',
-        'quiet': True
+        # 'ffmpeg_location': f'./ffmpeg',
+        'quiet': True,
+
     }
 
     while url != '':
@@ -49,9 +50,11 @@ def main():
     edit_videos(check_options, titles, videos)
 
     final_directory = get_directory()
+
+    # yt_dlp.YoutubeDL arguments for proxy auth, ffmpeg binary & forcing good codecs
     download_options = {
         'proxy': f'http://{username}:{password}@{PROXY}',
-        'ffmpeg_location': f'./ffmpeg',
+        # 'ffmpeg_location': f'./ffmpeg',
         'format': format_selector,
         'paths': {'home': f'{final_directory}', 'temp': HOME_DIR}
     }
@@ -60,7 +63,7 @@ def main():
         with yt_dlp.YoutubeDL(download_options) as ydl:
             ydl.download(videos)
     except yt_dlp.utils.DownloadError:
-        print('\nDownload Error occured: Check Proxy credentials')
+        print('\nDownload Error occured: Notify William')
         
 def format_selector(ctx):
     """ Select the best video and the best audio that won't result in an mkv.
@@ -89,7 +92,6 @@ def format_selector(ctx):
     }
 
 def get_title(url, options):
-    # Change arguments to make it less verbose aka quiet
     try: 
         with yt_dlp.YoutubeDL(options) as ydl:
             info_dict = ydl.extract_info(url, download=False)
@@ -107,34 +109,44 @@ def display_videos(titles):
 def edit_videos(check_options, titles, videos):
     display_videos(titles)
     # Provide option to change or clear entire list
-    is_editing = input('\nWould you like to edit the list? (Y/N)\n>> ').lower()
-    while is_editing != 'n':
-        while is_editing not in ['y', 'n']:
+    # is_editing = input('\nWould you like to edit the list? (Y/N)\n>> ').lower()
+    choice = input('\nWould you like to (A)dd to or (E)dit the list, Enter nothing to skip\n>> ').lower()
+    while choice != '':
+        while choice not in ['a', 'e']:
             print('Invalid input')
-            is_editing = input('\nWould you like to edit the list? (Y/N)\n>> ').lower()
-            
-        # Change singular list elements by having index's in the provided list
-        video_number = get_number('\nPlease enter the video number you wish to change\n>> ')
-        while video_number > len(titles):
-            print('Invalid video number')
-            video_number = get_number('\nPlease enter the video number you wish to change\n>> ')
-
-        verified = False
-        while not verified:
+            choice = input('\nWould you like to (A)dd to or (E)dit the list, Enter nothing to skip\n>> ').lower()
+        if choice == 'a':
             new_url = input('\nPlease enter the new YouTube URL\n>> ')
             if 'youtube.com' in new_url or 'youtu.be' in new_url:
                 try:
-                    titles[video_number - 1] = get_title(new_url, check_options)
-                    videos[video_number - 1] = new_url
-                    verified = True
+                    titles.append(get_title(new_url, check_options))
+                    videos.append(new_url)
                 except yt_dlp.utils.DownloadError:
                     print('Verification error: Check video URL')
             else:
                 print('Invalid link')
+        if choice == 'e':
+            # Change singular list elements by having index's in the provided list
+            video_number = get_number('\nPlease enter the video number you wish to change\n>> ')
+            while video_number > len(titles):
+                print('Invalid video number')
+                video_number = get_number('\nPlease enter the video number you wish to change\n>> ')
 
-
+            verified = False
+            while not verified:
+                new_url = input('\nPlease enter the new YouTube URL\n>> ')
+                if 'youtube.com' in new_url or 'youtu.be' in new_url:
+                    try:
+                        titles[video_number - 1] = get_title(new_url, check_options)
+                        videos[video_number - 1] = new_url
+                        verified = True
+                    except yt_dlp.utils.DownloadError:
+                        print('Verification error: Check video URL')
+                else:
+                    print('Invalid link')
         display_videos(titles)
-        is_editing = input('\nWould you like to edit the list? (Y/N)\n>> ').lower()
+        choice = input('\nWould you like to (A)dd to or (E)dit the list, Enter nothing to skip\n>> ').lower()
+
 
 def get_number(prompt):
     value = input(prompt)
