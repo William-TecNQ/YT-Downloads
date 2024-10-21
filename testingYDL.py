@@ -28,7 +28,7 @@ def main():
     videos = []
     check_options = {
         'proxy': f'http://{username}:{password}@{PROXY}',
-        # 'ffmpeg_location': f'./ffmpeg',
+        'ffmpeg_location': f'./ffmpeg',
         'quiet': True,
 
     }
@@ -54,7 +54,7 @@ def main():
     # yt_dlp.YoutubeDL arguments for proxy auth, ffmpeg binary & forcing good codecs
     download_options = {
         'proxy': f'http://{username}:{password}@{PROXY}',
-        # 'ffmpeg_location': f'./ffmpeg',
+        'ffmpeg_location': f'./ffmpeg',
         'format': format_selector,
         'paths': {'home': f'{final_directory}', 'temp': HOME_DIR}
     }
