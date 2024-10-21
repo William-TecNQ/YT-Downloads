@@ -3,6 +3,7 @@ from os import path
 from getpass import getpass
 import yt_dlp
 from yt_dlp.networking import exceptions
+# Links for Testing
 # https://www.youtube.com/watch?v=D5kGXI8vUKg
 # https://www.youtube.com/watch?v=udNXMAflbU8
 # https://www.youtube.com/watch?v=ApYbwdFWytE
@@ -12,26 +13,32 @@ from yt_dlp.networking import exceptions
 # Otherwise, change the filepath for the argument 'ffmpeg_location'
 PROXY = 'gateway.atcnq.local:3128'
 HOME_DIR = path.expanduser('~')
-# make proxy verification by using req status codes
+
 def main():
-    print('\n-- Proxy Authentication --')
-    username = input('Username: ')
-    password = getpass()
-    while check_proxy(username, password) == False:
-        print('Invalid proxy credentials\n')
+    check_options = {
+        'ffmpeg_location': f'./ffmpeg',
+        'quiet': True,
+    }
+    download_options = {
+        'ffmpeg_location': f'./ffmpeg',
+        'format': format_selector,
+    }
+
+    use_proxy = input('Require proxy credentials? (Y/n)').lower()
+    if use_proxy in ['y', '']:
+        print('\n-- Proxy Authentication --')
         username = input('Username: ')
         password = getpass()
-    
+        while check_proxy(username, password) == False:
+            print('Invalid proxy credentials\n')
+            username = input('Username: ')
+            password = getpass()
+        check_options['proxy'] = f'http://{username}:{password}@{PROXY}'
+        download_options['proxy'] = f'http://{username}:{password}@{PROXY}'
 
     url = input('\nURLS - Enter each YouTube URL one at a time, enter nothing to finish\n>> ')
     titles = []
     videos = []
-    check_options = {
-        'proxy': f'http://{username}:{password}@{PROXY}',
-        'ffmpeg_location': f'./ffmpeg',
-        'quiet': True,
-
-    }
 
     while url != '':
         if url[:43] in videos:
@@ -50,14 +57,9 @@ def main():
     edit_videos(check_options, titles, videos)
 
     final_directory = get_directory()
-
+    download_options['paths'] = {'home': f'{final_directory}', 'temp': HOME_DIR}
     # yt_dlp.YoutubeDL arguments for proxy auth, ffmpeg binary & forcing good codecs
-    download_options = {
-        'proxy': f'http://{username}:{password}@{PROXY}',
-        'ffmpeg_location': f'./ffmpeg',
-        'format': format_selector,
-        'paths': {'home': f'{final_directory}', 'temp': HOME_DIR}
-    }
+
     try: 
         print('----- DOWNLOAD STARTED -----')
         with yt_dlp.YoutubeDL(download_options) as ydl:
